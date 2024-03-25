@@ -1,0 +1,35 @@
+-- Define a stored procedure to delete old records based on the retention policy of not exceeding the free tier of 32 GB
+CREATE PROCEDURE CleanupOldData
+AS
+BEGIN
+    DELETE FROM YourTable
+    WHERE YourTimestampColumn < DATEADD(MONTH, -3, GETDATE()); -- Example: Delete records older than 3 months
+END;
+GO
+
+-- Schedule the stored procedure to run daily
+EXEC sp_add_schedule @schedule_name = N'DailyCleanupSchedule',
+                     @freq_type = 4, -- Daily
+                     @freq_interval = 1, -- Every 1 day
+                     @active_start_time = 000000;
+GO
+
+-- Attach the stored procedure to the schedule
+EXEC sp_attach_schedule @job_name = N'CleanupJob',
+                        @schedule_name = N'DailyCleanupSchedule';
+GO
+
+-- Create a job to execute the stored procedure
+EXEC msdb.dbo.sp_add_job @job_name=N'CleanupJob';
+GO
+
+EXEC msdb.dbo.sp_add_jobstep @job_name=N'CleanupJob',
+                              @step_name=N'ExecuteCleanupProcedure',
+                              @subsystem=N'TSQL',
+                              @command=N'EXEC CleanupOldData;',
+                              @database_name='YourDatabase';
+GO
+
+-- Start the job
+EXEC msdb.dbo.sp_start_job @job_name = N'CleanupJob';
+GO
